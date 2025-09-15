@@ -367,61 +367,61 @@ class MemGraphRunner:
         return G, node_to_idx, idx_to_node, cluster_labels, kmeans_model
     
     def _parse_date(self, date_value):
-        """解析日期值，返回datetime.date对象"""
+        """Parse date value and return datetime.date object"""
         try:
             if isinstance(date_value, int):
-                # 年份格式
+                # Year format
                 return datetime.date(date_value, 1, 1)
             elif isinstance(date_value, str):
-                # YYYY-MM-DD格式
+                # YYYY-MM-DD format
                 return datetime.datetime.strptime(date_value, "%Y-%m-%d").date()
             else:
                 return datetime.date.today()
         except Exception as e:
-            print(f"[Date Parsing] 日期解析失败: {date_value}, {e}")
+            print(f"[Date Parsing] Date parsing failed: {date_value}, {e}")
             return datetime.date.today()
     
     def _calculate_time_diff(self, date1, date2):
-        """计算两个日期之间的天数差"""
+        """Calculate the number of days between two dates"""
         try:
             d1 = self._parse_date(date1)
             d2 = self._parse_date(date2)
             return abs((d2 - d1).days)
         except Exception as e:
-            print(f"[Time Diff] 时间差计算失败: {date1}, {date2}, {e}")
+            print(f"[Time Diff] Time difference calculation failed: {date1}, {date2}, {e}")
             return 0
     
     def _get_random_walk_start_node(self, G, corpus, profile, query, query_embedding):
         """
-        确定随机游走的起始节点
+        Determine the starting node for random walk
         
         Args:
-            G: 图结构
-            corpus: 历史记录文本列表
-            profile: 历史记录信息列表
-            query: 查询文本
-            query_embedding: 查询的embedding向量
+            G: Graph structure
+            corpus: List of historical record texts
+            profile: List of historical record information
+            query: Query text
+            query_embedding: Query embedding vector
             
         Returns:
-            int: 起始节点的索引
+            int: Index of the starting node
         """
         if self.walk_start_method == "latest":
-            # 选择时间最新的节点
+            # Select the most recent node by time
             try:
                 latest_idx = max(
                     range(len(profile)),
                     key=lambda idx: self._parse_date(profile[idx]['date'])
                 )
-                print(f"[Random Walk] 选择时间最新的节点作为起始点: {latest_idx}")
+                print(f"[Random Walk] Selected most recent node as starting point: {latest_idx}")
                 return latest_idx
             except Exception as e:
-                print(f"[Random Walk] 选择最新节点失败: {e}")
+                print(f"[Random Walk] Failed to select most recent node: {e}")
                 return 0
                 
         elif self.walk_start_method == "semantic":
-            # 选择语义最接近查询的节点
+            # Select the node most semantically similar to the query
             try:
-                # 计算查询与所有历史记录的语义相似度
+                # Calculate semantic similarity between query and all historical records
                 query_tokens = self.retriever.tokenizer(
                     query,
                     padding=True,
@@ -437,37 +437,37 @@ class MemGraphRunner:
                     else:
                         query_emb = query_emb.flatten()
                 
-                # 获取历史记录embedding
+                # Get historical record embeddings
                 history_embeddings = self._get_profile_embeddings(corpus)
                 
-                # 计算相似度
+                # Calculate similarity
                 similarities = cosine_similarity([query_emb], history_embeddings)[0]
                 most_similar_idx = np.argmax(similarities)
                 
-                print(f"[Random Walk] 选择语义最相似的节点作为起始点: {most_similar_idx}, 相似度: {similarities[most_similar_idx]:.4f}")
+                print(f"[Random Walk] Selected most semantically similar node as starting point: {most_similar_idx}, similarity: {similarities[most_similar_idx]:.4f}")
                 return most_similar_idx
                 
             except Exception as e:
-                print(f"[Random Walk] 选择语义最相似节点失败: {e}")
+                print(f"[Random Walk] Failed to select most semantically similar node: {e}")
                 return 0
         
         else:
-            # 默认选择第一个节点
+            # Default to selecting the first node
             return 0
     
     def _personalized_random_walk(self, G, start_node, corpus, profile, query_embedding=None):
         """
-        执行个性化随机游走
+        Execute personalized random walk
         
         Args:
-            G: 图结构
-            start_node: 起始节点
-            corpus: 历史记录文本列表
-            profile: 历史记录信息列表
-            query_embedding: 查询的embedding向量
+            G: Graph structure
+            start_node: Starting node
+            corpus: List of historical record texts
+            profile: List of historical record information
+            query_embedding: Query embedding vector
             
         Returns:
-            list: 游走路径中的节点索引列表
+            list: List of node indices in the walk path
         """
         if G is None or G.number_of_nodes() == 0:
             return [start_node]
@@ -476,35 +476,35 @@ class MemGraphRunner:
         walk_path = []
         current_node = start_node
         
-        # 获取最新文档的时间作为参考
+        # Get the time of the latest document as reference
         try:
             latest_date = max(
                 [self._parse_date(p['date']) for p in profile],
                 default=datetime.date.today()
             )
         except Exception as e:
-            print(f"[Random Walk] 获取最新时间失败: {e}")
+            print(f"[Random Walk] Failed to get latest time: {e}")
             latest_date = datetime.date.today()
         
         while len(walk_path) < self.walk_length and current_node is not None:
-            # 添加当前节点到路径
+            # Add current node to path
             walk_path.append(current_node)
             visited_nodes.add(current_node)
             
-            # 获取当前节点的邻居
+            # Get neighbors of current node
             neighbors = list(G.neighbors(current_node))
             if not neighbors:
                 break
             
-            # 计算转移概率
+            # Calculate transition probabilities
             transition_probs = []
             for neighbor in neighbors:
                 if neighbor in visited_nodes:
                     continue
                 
-                # 计算语义相似度
+                # Calculate semantic similarity
                 if query_embedding is not None:
-                    # 使用查询embedding计算语义相似度
+                    # Use query embedding to calculate semantic similarity
                     neighbor_text = corpus[neighbor]
                     neighbor_tokens = self.retriever.tokenizer(
                         neighbor_text,
@@ -523,19 +523,19 @@ class MemGraphRunner:
                     
                     semantic_sim = cosine_similarity([query_embedding], [neighbor_emb])[0][0]
                 else:
-                    # 使用图边的权重作为语义相似度
+                    # Use graph edge weights as semantic similarity
                     edge_data = G.get_edge_data(current_node, neighbor)
                     semantic_sim = edge_data.get('weight', 0.5) if edge_data else 0.5
                 
-                # 计算时间间隔
+                # Calculate time interval
                 current_date = self._parse_date(profile[current_node]['date'])
                 neighbor_date = self._parse_date(profile[neighbor]['date'])
                 time_diff = abs((neighbor_date - current_date).days)
                 
-                # 计算到最新文档的时间间隔
+                # Calculate time interval to latest document
                 neighbor_to_latest = abs((latest_date - neighbor_date).days)
                 
-                # 计算转移强度
+                # Calculate transition strength
                 transition_strength = (
                     (semantic_sim ** self.semantic_alpha) *
                     np.exp(-self.time_lambda1 * time_diff) *
@@ -547,47 +547,47 @@ class MemGraphRunner:
             if not transition_probs:
                 break
             
-            # 根据转移概率选择下一个节点
+            # Select next node based on transition probabilities
             transition_probs.sort(key=lambda x: x[1], reverse=True)
             
-            # 使用轮盘赌选择，但偏向高概率节点
+            # Use roulette wheel selection, but bias towards high probability nodes
             total_prob = sum(prob for _, prob in transition_probs)
             if total_prob > 0:
-                # 归一化概率
+                # Normalize probabilities
                 normalized_probs = [(node, prob / total_prob) for node, prob in transition_probs]
                 
-                # 选择概率最高的前几个节点中的一个
+                # Select one from the top probability nodes
                 top_k = min(3, len(normalized_probs))
                 selected_idx = np.random.choice(top_k, p=[prob for _, prob in normalized_probs[:top_k]])
                 current_node = normalized_probs[selected_idx][0]
             else:
                 break
         
-        print(f"[Random Walk] 随机游走完成，访问了 {len(walk_path)} 个节点")
+        print(f"[Random Walk] Random walk completed, visited {len(walk_path)} nodes")
         return walk_path
     
     def _get_profile_tfidf(self, profile_texts):
         """
-        获取profile的TF-IDF向量
+        Get TF-IDF vectors for profiles
         
         Args:
-            profile_texts: profile文本列表
+            profile_texts: List of profile texts
             
         Returns:
-            scipy稀疏矩阵: profile的TF-IDF矩阵
+            scipy sparse matrix: TF-IDF matrix for profiles
         """
-        # 使用TF-IDF进行向量化
+        # Use TF-IDF for vectorization
         tfidf_vectorizer = TfidfVectorizer(
-            max_features=1000,  # 限制特征数量以提高效率
-            min_df=1,  # 最小文档频率
-            max_df=0.95,  # 最大文档频率，过滤掉过于常见的词
-            stop_words='english',  # 使用英文停用词
-            ngram_range=(1, 2),  # 使用1-gram和2-gram
+            max_features=1000,  # Limit number of features for efficiency
+            min_df=1,  # Minimum document frequency
+            max_df=0.95,  # Maximum document frequency, filter out overly common words
+            stop_words='english',  # Use English stop words
+            ngram_range=(1, 2),  # Use 1-gram and 2-gram
             lowercase=True,
             strip_accents='unicode'
         )
         
-        # 训练TF-IDF向量化器并转换文本
+        # Train TF-IDF vectorizer and transform text
         return tfidf_vectorizer.fit_transform(profile_texts)
 
     def run(self):
@@ -595,25 +595,25 @@ class MemGraphRunner:
         # Generate summaries if needed
         user_summaries = {}
         if self.summary:
-            print(f"[Batch Summary] 开始为所有用户生成基于图结构聚类的summary")
+            print(f"[Batch Summary] Starting to generate graph-based clustering summaries for all users")
             
-            # 为每个用户生成summary，使用图构建过程中的聚类
+            # Generate summary for each user using clustering from graph building process
             for data in tqdm(self.dataset, desc="Generating summaries"):
                 user_id = data['user_id']
                 
-                # 如果已经处理过这个用户，跳过
+                # If this user has already been processed, skip
                 if user_id in user_summaries:
                     continue
                 
-                # 获取用户profile
+                # Get user profile
                 user_idx = self.user2id[user_id]
                 profile = self.user_vocab[user_idx]['profile']
                 corpus = self.get_corpus(profile, self.use_date)
                 
-                # Build graph结构并获取聚类信息
+                # Build graph structure and get clustering information
                 if len(corpus) > 1 and self.use_kmeans:
                     try:
-                        # 获取查询的embedding（使用一个简单的查询）
+                        # Get query embedding (using a simple query)
                         query_tokens = self.retriever.tokenizer(
                             "user preference analysis",
                             padding=True,
@@ -629,26 +629,26 @@ class MemGraphRunner:
                             else:
                                 query_emb = query_emb.flatten()
                         
-                        # Build graph结构并获取聚类信息
+                        # Build graph structure and get clustering information
                         G, node_to_idx, idx_to_node, cluster_labels, kmeans_model = self._build_user_history_graph(corpus, profile, query_emb)
                         
-                        # 使用聚类信息生成summary
+                        # Use clustering information to generate summary
                         summary = self.generate_clustering_summary(profile, user_id, cluster_labels, kmeans_model)
                         user_summaries[user_id] = summary
                         
                     except Exception as e:
-                        print(f"[Summary] 用户 {user_id} 聚类summary生成失败: {e}")
-                        # 回退到传统方法
+                        print(f"[Summary] Failed to generate clustering summary for user {user_id}: {e}")
+                        # Fall back to traditional method
                         summary = self.generate_traditional_summary(profile, user_id)
                         user_summaries[user_id] = summary
                 else:
-                    # 使用传统方法
+                    # Use traditional method
                     summary = self.generate_traditional_summary(profile, user_id)
                     user_summaries[user_id] = summary
             
-            print(f"[Batch Summary] 完成所有用户的profile summary生成")
+            print(f"[Batch Summary] Completed profile summary generation for all users")
         
-        # 释放LLM占用的GPU显存
+        # Release GPU memory occupied by LLM
         if self.summary and self.auto_cleanup_llm:
             self.cleanup_llm()
         
@@ -657,16 +657,16 @@ class MemGraphRunner:
         sub_dir = f"{retriever_name}_{self.topk}"
         file_name = f"mem_graph"
         
-        # 添加summary参数到文件名
+        # Add summary parameters to filename
         if self.summary:
             file_name += f'_summaryk_{self.summary_k}_parallel-{self.use_parallel_summary}_batchsize-{self.summary_batch_size}'
             if self.enable_token_check:
                 file_name += f'_tokencheck-{self.enable_token_check}_reserve-{self.reserve_tokens}'
         
-        # 添加k-means聚类和时间衰减参数到文件名
+        # Add k-means clustering and time decay parameters to filename
         file_name += f'_kmeans-{self.use_kmeans}_method-{self.kmeans_select_method}_clusters-{self.n_clusters}_recency-{self.use_recency}_decay-{self.time_decay_lambda}'
         
-        # 添加图结构随机游走参数到文件名
+        # Add graph structure random walk parameters to filename
         if self.use_graph_walk:
             file_name += f'_graphwalk-{self.use_graph_walk}_start-{self.walk_start_method}_length-{self.walk_length}_alpha-{self.semantic_alpha}_lambda1-{self.time_lambda1}_lambda2-{self.time_lambda2}'
 
@@ -683,11 +683,11 @@ class MemGraphRunner:
                 "retrieval": selected_profs
             }
             
-            # 如果使用了summary，添加当前用户的summary
+            # If summary was used, add current user's summary
             if self.summary and user_summaries and data['user_id'] in user_summaries:
                 result_item["summary"] = user_summaries[data['user_id']]
             elif self.summary and user_summaries and data['user_id'] not in user_summaries:
-                print(f"[Warning] 用户 {data['user_id']} 没有找到对应的summary")
+                print(f"[Warning] No corresponding summary found for user {data['user_id']}")
             
             results.append(result_item)
 
@@ -746,12 +746,12 @@ class MemGraphRunner:
             print(f"Warning: Profile is not a list: {type(profile)}")
             profile = [profile] if profile is not None else [{}]
         
-        # 0. 图结构随机游走（如果启用）
+        # 0. Graph structure random walk (if enabled)
         if self.use_graph_walk and len(corpus) > 1:
             try:
-                print(f"[Graph Walk] 开始构建图结构并进行随机游走")
+                print(f"[Graph Walk] Starting to build graph structure and perform random walk")
                 
-                # 获取查询的embedding
+                # Get query embedding
                 query_tokens = self.retriever.tokenizer(
                     query,
                     padding=True,
@@ -767,33 +767,33 @@ class MemGraphRunner:
                     else:
                         query_emb = query_emb.flatten()
                 
-                # Build graph结构
+                # Build graph structure
                 G, node_to_idx, idx_to_node, cluster_labels, kmeans_model = self._build_user_history_graph(corpus, profile, query_emb)
                 
                 if G is not None:
-                    # 确定起始节点
+                    # Determine starting node
                     start_node = self._get_random_walk_start_node(G, corpus, profile, query, query_emb)
                     
-                    # 执行个性化随机游走
+                    # Execute personalized random walk
                     walk_path = self._personalized_random_walk(G, start_node, corpus, profile, query_emb)
                     
-                    # 从游走路径中选择节点对应的历史记录
+                    # Select historical records corresponding to nodes in the walk path
                     graph_corpus = [corpus[idx] for idx in walk_path]
                     graph_profile = [profile[idx] for idx in walk_path]
                     
-                    print(f"[Graph Walk] 随机游走选择了 {len(walk_path)} 个节点")
+                    print(f"[Graph Walk] Random walk selected {len(walk_path)} nodes")
                     
-                    # 使用BGE检索器对游走结果进行最终排序
+                    # Use BGE retriever for final ranking of walk results
                     selected_profs, dense_scores = self.retriever.retrieve_topk_dense(
                         graph_corpus, graph_profile, query, user, min(len(walk_path), topk)
                     )
                     
-                    # 如果游走结果不够，补充原始方法的结果
+                    # If walk results are insufficient, supplement with original method results
                     if len(selected_profs) < topk:
-                        print(f"[Graph Walk] 游走结果不足 {topk} 个，补充原始方法结果")
+                        print(f"[Graph Walk] Walk results insufficient {topk} items, supplementing with original method results")
                         remaining_topk = topk - len(selected_profs)
                         
-                        # 使用原始方法获取剩余的结果
+                        # Use original method to get remaining results
                         remaining_corpus = [c for c in corpus if c not in graph_corpus]
                         remaining_profile = [p for p in profile if p not in graph_profile]
                         
@@ -802,37 +802,37 @@ class MemGraphRunner:
                                 remaining_corpus, remaining_profile, query, user, remaining_topk
                             )
                             
-                            # 合并结果
+                            # Merge results
                             selected_profs.extend(remaining_profs)
                             dense_scores.extend(remaining_scores)
                     
                     return selected_profs[:topk], dense_scores[:topk]
                     
             except Exception as e:
-                print(f"[Graph Walk] 图结构随机游走失败: {e}")
-                print(f"[Graph Walk] 回退到原始方法")
+                print(f"[Graph Walk] Graph structure random walk failed: {e}")
+                print(f"[Graph Walk] Falling back to original method")
         
         n_clusters = self.n_clusters
 
         # 1. kmeans clustering
         if self.use_kmeans:
             try:
-                # 将corpus转换为文本进行TF-IDF向量化
+                # Convert corpus to text for TF-IDF vectorization
                 corpus_texts = [str(item) for item in corpus]
                 
-                # 根据配置选择向量化方式
+                # Select vectorization method based on configuration
                 if self.kmeans_use_embedding:
-                    print(f"[Clustering] 使用embedding进行K-means聚类，profile数量: {len(corpus_texts)}")
+                    print(f"[Clustering] Using embedding for K-means clustering, profile count: {len(corpus_texts)}")
                     X = self._get_profile_embeddings(corpus_texts)
                 else:
-                    print(f"[Clustering] 使用TF-IDF进行K-means聚类，profile数量: {len(corpus_texts)}")
+                    print(f"[Clustering] Using TF-IDF for K-means clustering, profile count: {len(corpus_texts)}")
                     X = self._get_profile_tfidf(corpus_texts)
                 
-                # 使用K-means聚类
+                # Use K-means clustering
                 kmeans = KMeans(n_clusters=min(n_clusters, len(corpus)), random_state=42, n_init=10)
                 cluster_labels = kmeans.fit_predict(X)
                 
-                # 从每个聚类中选择代表样本
+                # Select representative samples from each cluster
                 representative_indices = []
                 for i in range(kmeans.n_clusters):
                     cluster_idx = np.where(cluster_labels == i)[0]
@@ -840,7 +840,7 @@ class MemGraphRunner:
                         continue
                     
                     if self.kmeans_select_method == "center":
-                        # 选择最接近聚类中心的样本
+                        # Select sample closest to cluster center
                         if self.kmeans_use_embedding:
                             cluster_vectors = X[cluster_idx]
                         else:
@@ -849,21 +849,21 @@ class MemGraphRunner:
                         distances = np.linalg.norm(cluster_vectors - center_vector, axis=1)
                         selected_idx = cluster_idx[np.argmin(distances)]
                     elif self.kmeans_select_method == "relevance":
-                        # 选择与查询最相关的样本作为聚类代表
+                        # Select sample most relevant to query as cluster representative
                         cluster_corpus = [corpus[idx] for idx in cluster_idx]
                         cluster_profile = [profile[idx] for idx in cluster_idx]
                         
-                        # 使用BGE检索器计算相关性分数
+                        # Use BGE retriever to calculate relevance scores
                         try:
                             cluster_profs, cluster_scores = self.retriever.retrieve_topk_dense(
                                 cluster_corpus, cluster_profile, query, user, len(cluster_corpus)
                             )
-                            # 选择分数最高的样本
+                            # Select sample with highest score
                             best_idx = np.argmax(cluster_scores)
                             selected_idx = cluster_idx[best_idx]
                         except Exception as e:
-                            print(f"[K-means Relevance Selection] 聚类 {i} 相关性选择失败: {e}")
-                            # 回退到中心选择
+                            print(f"[K-means Relevance Selection] Cluster {i} relevance selection failed: {e}")
+                            # Fall back to center selection
                             if self.kmeans_use_embedding:
                                 cluster_vectors = X[cluster_idx]
                             else:
@@ -872,7 +872,7 @@ class MemGraphRunner:
                             distances = np.linalg.norm(cluster_vectors - center_vector, axis=1)
                             selected_idx = cluster_idx[np.argmin(distances)]
                     else:
-                        # 默认使用中心选择
+                        # Default to center selection
                         if self.kmeans_use_embedding:
                             cluster_vectors = X[cluster_idx]
                         else:
@@ -887,8 +887,8 @@ class MemGraphRunner:
                 kmeans_profile = [profile[i] for i in representative_indices]
                 
             except Exception as e:
-                print(f"[K-means Clustering] 聚类过程中出现错误: {e}")
-                # 如果聚类失败，使用原始corpus
+                print(f"[K-means Clustering] Error occurred during clustering: {e}")
+                # If clustering fails, use original corpus
                 kmeans_corpus = corpus
                 kmeans_profile = profile
         else:
@@ -908,7 +908,7 @@ class MemGraphRunner:
             recency_corpus = []
             recency_profile = []
 
-        # 3. 合并 kmeans 和 recency 结果
+        # 3. Merge kmeans and recency results
         if self.use_kmeans or self.use_recency:
             merged_corpus = kmeans_corpus + [c for c in recency_corpus if c not in kmeans_corpus]
             merged_profile = kmeans_profile + [p for p in recency_profile if p not in kmeans_profile]
@@ -916,17 +916,17 @@ class MemGraphRunner:
             merged_corpus = corpus
             merged_profile = profile
 
-        # 4. 使用 BGE 检索
+        # 4. Use BGE retrieval
         selected_profs, dense_scores = self.retriever.retrieve_topk_dense(
             merged_corpus, merged_profile, query, user, len(merged_corpus)
         )
         
-        # 5. 应用时间衰减权重
+        # 5. Apply time decay weights
         if self.time_decay_lambda > 0:
             time_weights = self._get_time_weight(selected_profs)
             dense_scores = np.array(dense_scores) * np.array(time_weights)
         
-        # 6. 重新排序并返回 topk
+        # 6. Re-sort and return topk
         sorted_idx = np.argsort(dense_scores)[::-1][:topk]
         selected_profs = [selected_profs[i] for i in sorted_idx]
         top_n_scores = [dense_scores[i] for i in sorted_idx]
@@ -935,77 +935,77 @@ class MemGraphRunner:
 
     def generate_clustering_summary(self, profile_list, user_id, cluster_labels=None, kmeans_model=None):
         """
-        使用已有的聚类结果生成分层summary
+        Generate hierarchical summary using existing clustering results
         
         Args:
-            profile_list: 用户的历史行为列表
-            user_id: 用户ID
-            cluster_labels: 聚类标签列表（从图构建过程中获得）
-            kmeans_model: 聚类模型（从图构建过程中获得）
+            profile_list: List of user's historical behaviors
+            user_id: User ID
+            cluster_labels: List of cluster labels (obtained from graph building process)
+            kmeans_model: Clustering model (obtained from graph building process)
             
         Returns:
-            global_summary: 最终的global summary
+            global_summary: Final global summary
         """
-        print(f"[Clustering Summary] 开始为用户 {user_id} 生成聚类summary，profile数量: {len(profile_list)}")
+        print(f"[Clustering Summary] Starting to generate clustering summary for user {user_id}, profile count: {len(profile_list)}")
         
-        # 如果没有聚类信息，使用传统方法
+        # If no clustering information, use traditional method
         if cluster_labels is None or kmeans_model is None:
-            print(f"[Clustering Summary] 用户 {user_id} 没有聚类信息，使用传统summary方法")
+            print(f"[Clustering Summary] User {user_id} has no clustering information, using traditional summary method")
             return self.generate_traditional_summary(profile_list, user_id)
         
-        # 1. 使用已有的聚类结果
+        # 1. Use existing clustering results
         clusters = {}
         for i, label in enumerate(cluster_labels):
             if label not in clusters:
                 clusters[label] = []
             clusters[label].append(i)
         
-        # 过滤掉太小的聚类
+        # Filter out clusters that are too small
         valid_clusters = []
         for cluster_indices in clusters.values():
-            if len(cluster_indices) >= 3:  # 最小聚类大小
+            if len(cluster_indices) >= 3:  # Minimum cluster size
                 valid_clusters.append(cluster_indices)
         
-        # 将未分配到有效聚类的profile归入最近的聚类
+        # Assign profiles not allocated to valid clusters to the nearest cluster
         all_assigned = set()
         for cluster in valid_clusters:
             all_assigned.update(cluster)
         
         unassigned = [i for i in range(len(profile_list)) if i not in all_assigned]
         if unassigned and valid_clusters:
-            # 将未分配的profile添加到最近的聚类
+            # Add unassigned profiles to the nearest cluster
             for idx in unassigned:
                 valid_clusters[0].append(idx)
         
         if not valid_clusters:
-            print(f"[Clustering Summary] 用户 {user_id} 没有有效聚类，使用传统summary方法")
+            print(f"[Clustering Summary] User {user_id} has no valid clusters, using traditional summary method")
             return self.generate_traditional_summary(profile_list, user_id)
         
-        print(f"[Clustering Summary] 用户 {user_id} 聚类完成，共 {len(valid_clusters)} 个聚类")
+        print(f"[Clustering Summary] User {user_id} clustering completed, total {len(valid_clusters)} clusters")
         
-        # 2. 为每个聚类生成local summary
+        # 2. Generate local summary for each cluster
         local_summaries = []
         for cluster_id, cluster_indices in enumerate(valid_clusters):
             cluster_profiles = [profile_list[i] for i in cluster_indices]
-            print(f"[Clustering Summary] 为用户 {user_id} 生成聚类 {cluster_id + 1} 的local summary，包含 {len(cluster_profiles)} 个profile")
+            print(f"[Clustering Summary] Generating local summary for user {user_id} cluster {cluster_id + 1}, contains {len(cluster_profiles)} profiles")
             
             local_summary = self.generate_local_summary(cluster_profiles, cluster_id)
             local_summaries.append(local_summary)
-            print(f"[Clustering Summary] 聚类 {cluster_id + 1} local summary 完成")
+            print(f"[Clustering Summary] Cluster {cluster_id + 1} local summary completed")
         
-        # 3. 整合所有local summary为global summary
-        print(f"[Clustering Summary] 为用户 {user_id} 整合 {len(local_summaries)} 个local summary为global summary")
+        # 3. Integrate all local summaries into global summary
+        print(f"[Clustering Summary] Integrating {len(local_summaries)} local summaries into global summary for user {user_id}")
         global_summary = self.generate_global_summary(local_summaries, user_id)
         
-        print(f"[Clustering Summary] 用户 {user_id} 的聚类summary生成完成")
+        print(f"[Clustering Summary] User {user_id} clustering summary generation completed")
         return global_summary
 
     def generate_traditional_summary(self, profile_list, user_id):
         """
-        使用传统方法生成summary（当没有聚类信息时）
+        Generate summary using traditional method (when there's no clustering information)
         
         Args:
-            profile_list: 用户的历史行为列表
+            profile_list: List of user's historical behaviors
             user_id: 用户ID
             
         Returns:
@@ -1126,61 +1126,61 @@ class MemGraphRunner:
         return truncated_tokens
 
     def _parse_date(self, date_value):
-        """解析日期值，返回datetime.date对象"""
+        """Parse date value and return datetime.date object"""
         try:
             if isinstance(date_value, int):
-                # 年份格式
+                # Year format
                 return datetime.date(date_value, 1, 1)
             elif isinstance(date_value, str):
-                # YYYY-MM-DD格式
+                # YYYY-MM-DD format
                 return datetime.datetime.strptime(date_value, "%Y-%m-%d").date()
             else:
                 return datetime.date.today()
         except Exception as e:
-            print(f"[Date Parsing] 日期解析失败: {date_value}, {e}")
+            print(f"[Date Parsing] Date parsing failed: {date_value}, {e}")
             return datetime.date.today()
     
     def _calculate_time_diff(self, date1, date2):
-        """计算两个日期之间的天数差"""
+        """Calculate the number of days between two dates"""
         try:
             d1 = self._parse_date(date1)
             d2 = self._parse_date(date2)
             return abs((d2 - d1).days)
         except Exception as e:
-            print(f"[Time Diff] 时间差计算失败: {date1}, {date2}, {e}")
+            print(f"[Time Diff] Time difference calculation failed: {date1}, {date2}, {e}")
             return 0
     
     def _get_random_walk_start_node(self, G, corpus, profile, query, query_embedding):
         """
-        确定随机游走的起始节点
+        Determine the starting node for random walk
         
         Args:
-            G: 图结构
-            corpus: 历史记录文本列表
-            profile: 历史记录信息列表
-            query: 查询文本
-            query_embedding: 查询的embedding向量
+            G: Graph structure
+            corpus: List of historical record texts
+            profile: List of historical record information
+            query: Query text
+            query_embedding: Query embedding vector
             
         Returns:
-            int: 起始节点的索引
+            int: Index of the starting node
         """
         if self.walk_start_method == "latest":
-            # 选择时间最新的节点
+            # Select the most recent node by time
             try:
                 latest_idx = max(
                     range(len(profile)),
                     key=lambda idx: self._parse_date(profile[idx]['date'])
                 )
-                print(f"[Random Walk] 选择时间最新的节点作为起始点: {latest_idx}")
+                print(f"[Random Walk] Selected most recent node as starting point: {latest_idx}")
                 return latest_idx
             except Exception as e:
-                print(f"[Random Walk] 选择最新节点失败: {e}")
+                print(f"[Random Walk] Failed to select most recent node: {e}")
                 return 0
                 
         elif self.walk_start_method == "semantic":
-            # 选择语义最接近查询的节点
+            # Select the node most semantically similar to the query
             try:
-                # 计算查询与所有历史记录的语义相似度
+                # Calculate semantic similarity between query and all historical records
                 query_tokens = self.retriever.tokenizer(
                     query,
                     padding=True,
@@ -1196,37 +1196,37 @@ class MemGraphRunner:
                     else:
                         query_emb = query_emb.flatten()
                 
-                # 获取历史记录embedding
+                # Get historical record embeddings
                 history_embeddings = self._get_profile_embeddings(corpus)
                 
-                # 计算相似度
+                # Calculate similarity
                 similarities = cosine_similarity([query_emb], history_embeddings)[0]
                 most_similar_idx = np.argmax(similarities)
                 
-                print(f"[Random Walk] 选择语义最相似的节点作为起始点: {most_similar_idx}, 相似度: {similarities[most_similar_idx]:.4f}")
+                print(f"[Random Walk] Selected most semantically similar node as starting point: {most_similar_idx}, similarity: {similarities[most_similar_idx]:.4f}")
                 return most_similar_idx
                 
             except Exception as e:
-                print(f"[Random Walk] 选择语义最相似节点失败: {e}")
+                print(f"[Random Walk] Failed to select most semantically similar node: {e}")
                 return 0
         
         else:
-            # 默认选择第一个节点
+            # Default to selecting the first node
             return 0
     
     def _personalized_random_walk(self, G, start_node, corpus, profile, query_embedding=None):
         """
-        执行个性化随机游走
+        Execute personalized random walk
         
         Args:
-            G: 图结构
-            start_node: 起始节点
-            corpus: 历史记录文本列表
-            profile: 历史记录信息列表
-            query_embedding: 查询的embedding向量
+            G: Graph structure
+            start_node: Starting node
+            corpus: List of historical record texts
+            profile: List of historical record information
+            query_embedding: Query embedding vector
             
         Returns:
-            list: 游走路径中的节点索引列表
+            list: List of node indices in the walk path
         """
         if G is None or G.number_of_nodes() == 0:
             return [start_node]
@@ -1235,35 +1235,35 @@ class MemGraphRunner:
         walk_path = []
         current_node = start_node
         
-        # 获取最新文档的时间作为参考
+        # Get the time of the latest document as reference
         try:
             latest_date = max(
                 [self._parse_date(p['date']) for p in profile],
                 default=datetime.date.today()
             )
         except Exception as e:
-            print(f"[Random Walk] 获取最新时间失败: {e}")
+            print(f"[Random Walk] Failed to get latest time: {e}")
             latest_date = datetime.date.today()
         
         while len(walk_path) < self.walk_length and current_node is not None:
-            # 添加当前节点到路径
+            # Add current node to path
             walk_path.append(current_node)
             visited_nodes.add(current_node)
             
-            # 获取当前节点的邻居
+            # Get neighbors of current node
             neighbors = list(G.neighbors(current_node))
             if not neighbors:
                 break
             
-            # 计算转移概率
+            # Calculate transition probabilities
             transition_probs = []
             for neighbor in neighbors:
                 if neighbor in visited_nodes:
                     continue
                 
-                # 计算语义相似度
+                # Calculate semantic similarity
                 if query_embedding is not None:
-                    # 使用查询embedding计算语义相似度
+                    # Use query embedding to calculate semantic similarity
                     neighbor_text = corpus[neighbor]
                     neighbor_tokens = self.retriever.tokenizer(
                         neighbor_text,
@@ -1282,19 +1282,19 @@ class MemGraphRunner:
                     
                     semantic_sim = cosine_similarity([query_embedding], [neighbor_emb])[0][0]
                 else:
-                    # 使用图边的权重作为语义相似度
+                    # Use graph edge weights as semantic similarity
                     edge_data = G.get_edge_data(current_node, neighbor)
                     semantic_sim = edge_data.get('weight', 0.5) if edge_data else 0.5
                 
-                # 计算时间间隔
+                # Calculate time interval
                 current_date = self._parse_date(profile[current_node]['date'])
                 neighbor_date = self._parse_date(profile[neighbor]['date'])
                 time_diff = abs((neighbor_date - current_date).days)
                 
-                # 计算到最新文档的时间间隔
+                # Calculate time interval to latest document
                 neighbor_to_latest = abs((latest_date - neighbor_date).days)
                 
-                # 计算转移强度
+                # Calculate transition strength
                 transition_strength = (
                     (semantic_sim ** self.semantic_alpha) *
                     np.exp(-self.time_lambda1 * time_diff) *
@@ -1306,47 +1306,47 @@ class MemGraphRunner:
             if not transition_probs:
                 break
             
-            # 根据转移概率选择下一个节点
+            # Select next node based on transition probabilities
             transition_probs.sort(key=lambda x: x[1], reverse=True)
             
-            # 使用轮盘赌选择，但偏向高概率节点
+            # Use roulette wheel selection, but bias towards high probability nodes
             total_prob = sum(prob for _, prob in transition_probs)
             if total_prob > 0:
-                # 归一化概率
+                # Normalize probabilities
                 normalized_probs = [(node, prob / total_prob) for node, prob in transition_probs]
                 
-                # 选择概率最高的前几个节点中的一个
+                # Select one from the top probability nodes
                 top_k = min(3, len(normalized_probs))
                 selected_idx = np.random.choice(top_k, p=[prob for _, prob in normalized_probs[:top_k]])
                 current_node = normalized_probs[selected_idx][0]
             else:
                 break
         
-        print(f"[Random Walk] 随机游走完成，访问了 {len(walk_path)} 个节点")
+        print(f"[Random Walk] Random walk completed, visited {len(walk_path)} nodes")
         return walk_path
     
     def _get_profile_tfidf(self, profile_texts):
         """
-        获取profile的TF-IDF向量
+        Get TF-IDF vectors for profiles
         
         Args:
-            profile_texts: profile文本列表
+            profile_texts: List of profile texts
             
         Returns:
-            scipy稀疏矩阵: profile的TF-IDF矩阵
+            scipy sparse matrix: TF-IDF matrix for profiles
         """
-        # 使用TF-IDF进行向量化
+        # Use TF-IDF for vectorization
         tfidf_vectorizer = TfidfVectorizer(
-            max_features=1000,  # 限制特征数量以提高效率
-            min_df=1,  # 最小文档频率
-            max_df=0.95,  # 最大文档频率，过滤掉过于常见的词
-            stop_words='english',  # 使用英文停用词
-            ngram_range=(1, 2),  # 使用1-gram和2-gram
+            max_features=1000,  # Limit number of features for efficiency
+            min_df=1,  # Minimum document frequency
+            max_df=0.95,  # Maximum document frequency, filter out overly common words
+            stop_words='english',  # Use English stop words
+            ngram_range=(1, 2),  # Use 1-gram and 2-gram
             lowercase=True,
             strip_accents='unicode'
         )
         
-        # 训练TF-IDF向量化器并转换文本
+        # Train TF-IDF vectorizer and transform text
         return tfidf_vectorizer.fit_transform(profile_texts)
 
  

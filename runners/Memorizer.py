@@ -257,18 +257,18 @@ class Memorizer:
 
     def _split_equal_time_period(self, profile_with_indices):
         """
-        等时间段方法：按时间跨度等分为指定数量的时间段
+        Equal time period method: divide time span equally into specified number of time periods
         
         Args:
-            profile_with_indices: 按时间排序的(索引, profile)列表
+            profile_with_indices: List of (index, profile) tuples sorted by time
             
         Returns:
-            clusters: 聚类结果
+            clusters: Clustering results
         """
         if len(profile_with_indices) < 2:
             return [[item[0] for item in profile_with_indices]]
         
-        # 计算时间跨度
+        # Calculate time span
         def get_date(profile):
             if isinstance(profile['date'], int):
                 return datetime.date(profile['date'], 1, 1)
@@ -283,7 +283,7 @@ class Memorizer:
         if n_clusters <= 1:
             return [[item[0] for item in profile_with_indices]]
         
-        # 计算每个时间段的天数
+        # Calculate days per time period
         days_per_period = total_days / n_clusters
         
         clusters = [[] for _ in range(n_clusters)]
@@ -292,63 +292,63 @@ class Memorizer:
             current_date = get_date(profile)
             days_from_start = (current_date - start_date).days
             
-            # 确定属于哪个时间段
+            # Determine which time period it belongs to
             period_idx = min(int(days_from_start / days_per_period), n_clusters - 1)
             clusters[period_idx].append(item_idx)
         
-        # 过滤掉空的聚类
+        # Filter out empty clusters
         return [cluster for cluster in clusters if cluster]
 
     def cluster_user_profiles(self, profile_list):
         """
-        对用户的历史行为进行聚类（使用TF-IDF向量化或时间信息）
+        Cluster user's historical behavior (using TF-IDF vectorization or time information)
         
         Args:
-            profile_list: 用户的历史行为列表
+            profile_list: List of user's historical behaviors
             
         Returns:
-            clusters: 聚类结果，每个元素是一个包含profile索引的列表
+            clusters: Clustering results, each element is a list containing profile indices
         """
-        # 根据配置选择聚类方式
+        # Select clustering method based on configuration
         if self.use_time_clustering:
-            print(f"[Clustering] 使用基于时间的聚类方式，方法: {self.time_clustering_method}")
+            print(f"[Clustering] Using time-based clustering method: {self.time_clustering_method}")
             return self.cluster_user_profiles_by_time(profile_list)
         else:
-            print(f"[Clustering] 使用K-means聚类方式")
+            print(f"[Clustering] Using K-means clustering method")
             return self.cluster_user_profiles_by_kmeans(profile_list)
 
     def cluster_user_profiles_by_kmeans(self, profile_list):
         """
-        使用K-means对用户的历史行为进行聚类（可选择使用embedding或TF-IDF向量化）
+        Use K-means to cluster user's historical behavior (can choose to use embedding or TF-IDF vectorization)
         
         Args:
-            profile_list: 用户的历史行为列表
+            profile_list: List of user's historical behaviors
             
         Returns:
-            clusters: 聚类结果，每个元素是一个包含profile索引的列表
+            clusters: Clustering results, each element is a list containing profile indices
         """
         if len(profile_list) < self.summary_cluster_min_size:
             # If profile count is too small, directly return single cluster
             return [[i for i in range(len(profile_list))]]
         
         try:
-            # 将profile转换为文本
+            # Convert profile to text
             profile_texts = [str(profile) for profile in profile_list]
             
-            # 根据配置选择向量化方式
+            # Select vectorization method based on configuration
             if self.kmeans_use_embedding:
-                print(f"[Clustering] 使用embedding进行K-means聚类，profile数量: {len(profile_texts)}")
+                print(f"[Clustering] Using embedding for K-means clustering, profile count: {len(profile_texts)}")
                 X = self._get_profile_embeddings(profile_texts)
             else:
-                print(f"[Clustering] 使用TF-IDF进行K-means聚类，profile数量: {len(profile_texts)}")
+                print(f"[Clustering] Using TF-IDF for K-means clustering, profile count: {len(profile_texts)}")
                 X = self._get_profile_tfidf(profile_texts)
             
-            # 使用K-means聚类
+            # Use K-means clustering
             n_clusters = min(self.summary_clusters, len(profile_list))
             kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
             cluster_labels = kmeans.fit_predict(X)
             
-            # 组织聚类结果
+            # Organize clustering results
             clusters = {}
             for i, label in enumerate(cluster_labels):
                 if label not in clusters:
@@ -368,35 +368,35 @@ class Memorizer:
             
             unassigned = [i for i in range(len(profile_list)) if i not in all_assigned]
             if unassigned and valid_clusters:
-                # 将未分配的profile添加到最近的聚类
+                # Add unassigned profiles to the nearest cluster
                 for idx in unassigned:
-                    # 简单策略：添加到第一个聚类
+                    # Simple strategy: add to first cluster
                     valid_clusters[0].append(idx)
             
-            print(f"[Clustering] 聚类完成，生成了 {len(valid_clusters)} 个有效聚类")
+            print(f"[Clustering] Clustering completed, generated {len(valid_clusters)} valid clusters")
             return valid_clusters if valid_clusters else [[i for i in range(len(profile_list))]]
             
         except Exception as e:
-            print(f"[Clustering] 聚类过程中出现错误: {e}")
-            # 如果聚类失败，返回单个聚类
+            print(f"[Clustering] Error occurred during clustering: {e}")
+            # If clustering fails, return single cluster
             return [[i for i in range(len(profile_list))]]
     
     def _get_profile_embeddings(self, profile_texts):
         """
-        获取profile的embedding向量，使用BGE-M3模型
+        Get profile embedding vectors using BGE-M3 model
         
         Args:
-            profile_texts: profile文本列表
+            profile_texts: List of profile texts
             
         Returns:
-            numpy数组: profile的embedding矩阵
+            numpy array: Profile embedding matrix
         """
         profile_embeddings = []
         
-        # 动态检测embedding维度
+        # Dynamically detect embedding dimension
         if not hasattr(self, '_embedding_dim'):
             try:
-                # 使用一个简单的测试文本来检测embedding维度
+                # Use a simple test text to detect embedding dimension
                 test_text = "test text for dimension detection"
                 test_tokens = self.retriever.tokenizer(
                     test_text,
@@ -412,14 +412,14 @@ class Memorizer:
                         self._embedding_dim = test_emb.size(-1)
                     else:
                         self._embedding_dim = test_emb.shape[-1]
-                    print(f"[Clustering] 检测到BGE-M3 embedding维度: {self._embedding_dim}")
+                    print(f"[Clustering] Detected BGE-M3 embedding dimension: {self._embedding_dim}")
             except Exception as e:
-                print(f"[Clustering] 检测embedding维度失败，使用默认值1024: {e}")
-                self._embedding_dim = 1024  # BGE-M3的默认维度
+                print(f"[Clustering] Failed to detect embedding dimension, using default value 1024: {e}")
+                self._embedding_dim = 1024  # BGE-M3 default dimension
         
         for i, text in enumerate(profile_texts):
             try:
-                # 使用retriever的tokenizer和encode方法获取embedding
+                # Use retriever's tokenizer and encode method to get embedding
                 tokens = self.retriever.tokenizer(
                     text,
                     padding=True,
@@ -430,70 +430,70 @@ class Memorizer:
                 
                 with torch.no_grad():
                     emb = self.retriever.encode(tokens)
-                    # 如果emb是tensor，转换为numpy数组
+                    # If emb is tensor, convert to numpy array
                     if isinstance(emb, torch.Tensor):
                         emb = emb.cpu().numpy()
-                    profile_embeddings.append(emb.flatten())  # 展平为1D数组
+                    profile_embeddings.append(emb.flatten())  # Flatten to 1D array
                     
             except Exception as e:
-                print(f"[Clustering] 获取profile {i} embedding时出错: {e}")
-                # 如果获取embedding失败，使用零向量
+                print(f"[Clustering] Error getting profile {i} embedding: {e}")
+                # If getting embedding fails, use zero vector
                 profile_embeddings.append(np.zeros(self._embedding_dim))
         
-        # 转换为numpy数组
+        # Convert to numpy array
         embeddings_array = np.array(profile_embeddings)
-        print(f"[Clustering] 成功获取 {len(profile_texts)} 个profile的embedding，维度: {embeddings_array.shape}")
+        print(f"[Clustering] Successfully obtained embeddings for {len(profile_texts)} profiles, dimension: {embeddings_array.shape}")
         return embeddings_array
     
     def _get_profile_tfidf(self, profile_texts):
         """
-        获取profile的TF-IDF向量
+        Get TF-IDF vectors for profiles
         
         Args:
-            profile_texts: profile文本列表
+            profile_texts: List of profile texts
             
         Returns:
-            scipy稀疏矩阵: profile的TF-IDF矩阵
+            scipy sparse matrix: TF-IDF matrix for profiles
         """
-        # 使用TF-IDF进行向量化
+        # Use TF-IDF for vectorization
         tfidf_vectorizer = TfidfVectorizer(
-            max_features=1000,  # 限制特征数量以提高效率
-            min_df=1,  # 最小文档频率
-            max_df=0.95,  # 最大文档频率，过滤掉过于常见的词
-            stop_words='english',  # 使用英文停用词
-            ngram_range=(1, 2),  # 使用1-gram和2-gram
+            max_features=1000,  # Limit number of features for efficiency
+            min_df=1,  # Minimum document frequency
+            max_df=0.95,  # Maximum document frequency, filter out overly common words
+            stop_words='english',  # Use English stop words
+            ngram_range=(1, 2),  # Use 1-gram and 2-gram
             lowercase=True,
             strip_accents='unicode'
         )
         
-        # 训练TF-IDF向量化器并转换文本
+        # Train TF-IDF vectorizer and transform text
         return tfidf_vectorizer.fit_transform(profile_texts)
 
     def generate_local_summary(self, profile_cluster, cluster_id):
         """
-        为单个聚类生成local summary
+        Generate local summary for a single cluster
         
         Args:
-            profile_cluster: 聚类中的profile列表
-            cluster_id: 聚类ID
+            profile_cluster: List of profiles in the cluster
+            cluster_id: Cluster ID
             
         Returns:
-            local_summary: 该聚类的local summary
+            local_summary: Local summary for this cluster
         """
         if not profile_cluster:
             return ""
         
-        # 将profile转换为文本
+        # Convert profile to text
         profile_texts = [str(profile) for profile in profile_cluster]
         
-        # 构建prompt
+        # Build prompt
         prompt = f"You are an expert at analyzing user behavior patterns. Please analyze the following cluster of user activities and provide a concise summary of the user's preferences and patterns in this cluster.\n\n"
         prompt += f"**Cluster {cluster_id + 1} Activities ({len(profile_texts)} records):**\n"
         for i, text in enumerate(profile_texts):
             prompt += f"{i+1}. {text}\n"
         prompt += "\n**Task:**\nProvide a concise summary of the user's preferences and behavior patterns in this cluster. Focus on key themes, preferences, and patterns. Use clear, structured language."
         
-        # 检查并截断prompt
+        # Check and truncate prompt
         max_model_len = 8192
         prompt = self.check_and_truncate_prompt(prompt, max_model_len, self.reserve_tokens, self.enable_token_check)
         
@@ -505,23 +505,23 @@ class Memorizer:
 
     def generate_global_summary(self, local_summaries, user_id):
         """
-        将所有local summary整合成global summary
+        Integrate all local summaries into global summary
         
         Args:
-            local_summaries: local summary列表
-            user_id: 用户ID
+            local_summaries: List of local summaries
+            user_id: User ID
             
         Returns:
-            global_summary: 整合后的global summary
+            global_summary: Integrated global summary
         """
         if not local_summaries:
             return ""
         
         if len(local_summaries) == 1:
-            # 如果只有一个local summary，直接返回
+            # If only one local summary, return directly
             return local_summaries[0]
         
-        # 构建prompt - 强调简洁性
+        # Build prompt - emphasize conciseness
         prompt = f"You are an expert at creating concise user preference summaries. Please synthesize the following cluster summaries into a brief, focused global summary.\n\n"
         prompt += f"**User ID:** {user_id}\n"
         prompt += f"**Cluster Summaries ({len(local_summaries)} clusters):**\n"
@@ -529,7 +529,7 @@ class Memorizer:
             prompt += f"Cluster {i+1}: {summary}\n"
         prompt += "\n**Task:**\nCreate a concise global summary (max 300 words) that captures the user's key preferences and behavior patterns. Focus on the most important themes and avoid redundancy. Use bullet points or short paragraphs for clarity. Be brief but comprehensive."
         
-        # 检查并截断prompt
+        # Check and truncate prompt
         max_model_len = 8192
         prompt = self.check_and_truncate_prompt(prompt, max_model_len, self.reserve_tokens, self.enable_token_check)
         
@@ -541,28 +541,28 @@ class Memorizer:
 
     def check_and_truncate_prompt(self, prompt: str, max_model_len: int = 8192, reserve_tokens: int = 500, enable_check: bool = True) -> str:
         """
-        检查prompt的token长度，如果超过限制则自动截断
+        Check prompt token length, automatically truncate if exceeding limit
         """
         if not enable_check:
             return prompt
         
-        # 计算当前prompt的token数量
+        # Calculate current prompt token count
         tokens = self.agent_tokenizer(prompt, return_tensors="pt")
         current_tokens = tokens["input_ids"].shape[1]
         
-        # 计算最大允许的输入token数量
+        # Calculate maximum allowed input token count
         max_input_tokens = max_model_len - reserve_tokens
         
         if current_tokens <= max_input_tokens:
             return prompt
         
-        # 如果超过限制，截断到最大允许长度
+        # If exceeding limit, truncate to maximum allowed length
         truncated_tokens = self.agent_tokenizer.decode(
             tokens["input_ids"][0][:max_input_tokens], 
             skip_special_tokens=True
         )
         
-        # 尝试在句子边界截断
+        # Try to truncate at sentence boundaries
         sentences = truncated_tokens.split('.')
         if len(sentences) > 1:
             truncated_tokens = '.'.join(sentences[:-1]) + '.'
@@ -571,36 +571,36 @@ class Memorizer:
 
     def generate_clustering_summary(self, profile_list, user_id):
         """
-        使用聚类方法生成分层summary
+        Generate hierarchical summary using clustering method
         
         Args:
-            profile_list: 用户的历史行为列表
-            user_id: 用户ID
+            profile_list: List of user's historical behaviors
+            user_id: User ID
             
         Returns:
-            global_summary: 最终的global summary
+            global_summary: Final global summary
         """
-        print(f"[Clustering Summary] 开始为用户 {user_id} 生成聚类summary，profile数量: {len(profile_list)}")
+        print(f"[Clustering Summary] Starting to generate clustering summary for user {user_id}, profile count: {len(profile_list)}")
         
-        # 1. 对profile进行聚类
+        # 1. Cluster profiles
         clusters = self.cluster_user_profiles(profile_list)
-        print(f"[Clustering Summary] 用户 {user_id} 聚类完成，共 {len(clusters)} 个聚类")
+        print(f"[Clustering Summary] User {user_id} clustering completed, total {len(clusters)} clusters")
         
-        # 2. 为每个聚类生成local summary
+        # 2. Generate local summary for each cluster
         local_summaries = []
         for cluster_id, cluster_indices in enumerate(clusters):
             cluster_profiles = [profile_list[i] for i in cluster_indices]
-            print(f"[Clustering Summary] 为用户 {user_id} 生成聚类 {cluster_id + 1} 的local summary，包含 {len(cluster_profiles)} 个profile")
+            print(f"[Clustering Summary] Generating local summary for user {user_id} cluster {cluster_id + 1}, contains {len(cluster_profiles)} profiles")
             
             local_summary = self.generate_local_summary(cluster_profiles, cluster_id)
             local_summaries.append(local_summary)
-            print(f"[Clustering Summary] 聚类 {cluster_id + 1} local summary 完成")
+            print(f"[Clustering Summary] Cluster {cluster_id + 1} local summary completed")
         
-        # 3. 整合所有local summary为global summary
-        print(f"[Clustering Summary] 为用户 {user_id} 整合 {len(local_summaries)} 个local summary为global summary")
+        # 3. Integrate all local summaries into global summary
+        print(f"[Clustering Summary] Integrating {len(local_summaries)} local summaries into global summary for user {user_id}")
         global_summary = self.generate_global_summary(local_summaries, user_id)
         
-        print(f"[Clustering Summary] 用户 {user_id} 的聚类summary生成完成")
+        print(f"[Clustering Summary] User {user_id} clustering summary generation completed")
         return global_summary
 
     def load_user(self, opts):
@@ -630,7 +630,7 @@ class Memorizer:
         # Determine output directory and file name
         user_summaries = {}
         if self.summary:
-            # 收集所有需要summary的用户profile
+            # Collect all user profiles that need summary
             user_profiles = {}
             unique_user_ids = set()
             
@@ -642,19 +642,19 @@ class Memorizer:
                     profile = self.user_vocab[user_idx]['profile']
                     user_profiles[user_id] = profile
             
-            print(f"[Batch Summary] 开始批量处理 {len(user_profiles)} 个用户的profile summary")
+            print(f"[Batch Summary] Starting batch processing of {len(user_profiles)} users' profile summaries")
             
-            # 根据配置选择summary方式
+            # Select summary method based on configuration
             if self.use_clustering_summary:
-                print(f"[Clustering Summary] 使用聚类分层summary方式")
+                print(f"[Clustering Summary] Using clustering hierarchical summary method")
                 for user_id, profile in user_profiles.items():
-                    print(f"[Clustering Summary] 处理用户 {user_id}")
+                    print(f"[Clustering Summary] Processing user {user_id}")
                     summary = self.generate_clustering_summary(profile, user_id)
                     user_summaries[user_id] = summary
             else:
-                # 使用原有的批量处理方式
+                # Use original batch processing method
                 if self.use_parallel_summary:
-                    print(f"[Batch Summary] 使用并行批量处理，批次大小: {self.summary_batch_size}")
+                    print(f"[Batch Summary] Using parallel batch processing, batch size: {self.summary_batch_size}")
                     user_summaries = llm_batch_summarize_parallel(
                         user_profiles, 
                         self.agent_tokenizer, 
@@ -666,7 +666,7 @@ class Memorizer:
                         self.reserve_tokens
                     )
                 else:
-                    print(f"[Batch Summary] 使用顺序批量处理")
+                    print(f"[Batch Summary] Using sequential batch processing")
                     user_summaries = llm_batch_summarize(
                         user_profiles, 
                         self.agent_tokenizer, 
@@ -677,13 +677,13 @@ class Memorizer:
                         self.reserve_tokens
                     )
             
-            print(f"[Batch Summary] 完成所有用户的profile summary生成")
+            print(f"[Batch Summary] Completed profile summary generation for all users")
         
-        # 释放LLM占用的GPU显存
+        # Release GPU memory occupied by LLM
         if self.summary and self.auto_cleanup_llm:
             self.cleanup_llm()
         
-        #LLM此时可以关闭了，因为已经生成了summary
+        # LLM can be closed now since summary has been generated
         
         retriever_name = "bge-m3"
         sub_dir = f"{retriever_name}_{self.topk}"
@@ -692,7 +692,7 @@ class Memorizer:
         else:
             file_name = f"mem_base"
         
-        # 添加新参数到文件名
+        # Add new parameters to filename
         if self.summary:
             file_name += f'_parallel-{self.use_parallel_summary}_batchsize-{self.summary_batch_size}'
             if self.enable_token_check:
@@ -717,11 +717,11 @@ class Memorizer:
                 "retrieval": selected_profs
             }
             
-            # 如果使用了summary，添加当前用户的summary
+            # If summary was used, add current user's summary
             if self.summary and user_summaries and data['user_id'] in user_summaries:
                 result_item["summary"] = user_summaries[data['user_id']]
             elif self.summary and user_summaries and data['user_id'] not in user_summaries:
-                print(f"[Warning] 用户 {data['user_id']} 没有找到对应的summary")
+                print(f"[Warning] No corresponding summary found for user {data['user_id']}")
             
             results.append(result_item)
 
@@ -764,7 +764,7 @@ class Memorizer:
         Returns: list of float, time weights
         """
         if ref_date is None:
-            # 以所有profile中最新的时间为参考
+            # Use the latest time among all profiles as reference
             dates = []
             for p in profile_list:
                 if isinstance(p['date'], int):
@@ -796,28 +796,28 @@ class Memorizer:
         # 1. kmeans clustering
         if self.use_kmeans:
             try:
-                # 将corpus转换为文本进行TF-IDF向量化
+                # Convert corpus to text for TF-IDF vectorization
                 corpus_texts = [str(item) for item in corpus]
                 
-                # 使用TF-IDF进行向量化
+                # Use TF-IDF for vectorization
                 tfidf_vectorizer = TfidfVectorizer(
-                    max_features=1000,  # 限制特征数量以提高效率
-                    min_df=1,  # 最小文档频率
-                    max_df=0.95,  # 最大文档频率，过滤掉过于常见的词
-                    stop_words='english',  # 使用英文停用词
-                    ngram_range=(1, 2),  # 使用1-gram和2-gram
+                    max_features=1000,  # Limit number of features for efficiency
+                    min_df=1,  # Minimum document frequency
+                    max_df=0.95,  # Maximum document frequency, filter out overly common words
+                    stop_words='english',  # Use English stop words
+                    ngram_range=(1, 2),  # Use 1-gram and 2-gram
                     lowercase=True,
                     strip_accents='unicode'
                 )
                 
-                # 训练TF-IDF向量化器并转换文本
+                # Train TF-IDF vectorizer and transform text
                 X = tfidf_vectorizer.fit_transform(corpus_texts)
                 
-                # 使用K-means聚类
+                # Use K-means clustering
                 kmeans = KMeans(n_clusters=min(n_clusters, len(corpus)), random_state=42, n_init=10)
                 cluster_labels = kmeans.fit_predict(X)
                 
-                # 从每个聚类中选择代表样本
+                # Select representative samples from each cluster
                 representative_indices = []
                 for i in range(kmeans.n_clusters):
                     cluster_idx = np.where(cluster_labels == i)[0]
@@ -825,33 +825,33 @@ class Memorizer:
                         continue
                     
                     if self.kmeans_select_method == "center":
-                        # 选择最接近聚类中心的样本
+                        # Select sample closest to cluster center
                         cluster_vectors = X[cluster_idx].toarray()
                         center_vector = kmeans.cluster_centers_[i]
                         distances = np.linalg.norm(cluster_vectors - center_vector, axis=1)
                         selected_idx = cluster_idx[np.argmin(distances)]
                     elif self.kmeans_select_method == "relevance":
-                        # 选择与查询最相关的样本作为聚类代表
+                        # Select sample most relevant to query as cluster representative
                         cluster_corpus = [corpus[idx] for idx in cluster_idx]
                         cluster_profile = [profile[idx] for idx in cluster_idx]
                         
-                        # 使用BGE检索器计算相关性分数
+                        # Use BGE retriever to calculate relevance scores
                         try:
                             cluster_profs, cluster_scores = self.retriever.retrieve_topk_dense(
                                 cluster_corpus, cluster_profile, query, user, len(cluster_corpus)
                             )
-                            # 选择分数最高的样本
+                            # Select sample with highest score
                             best_idx = np.argmax(cluster_scores)
                             selected_idx = cluster_idx[best_idx]
                         except Exception as e:
-                            print(f"[K-means Relevance Selection] 聚类 {i} 相关性选择失败: {e}")
-                            # 回退到中心选择
+                            print(f"[K-means Relevance Selection] Cluster {i} relevance selection failed: {e}")
+                            # Fall back to center selection
                             cluster_vectors = X[cluster_idx].toarray()
                             center_vector = kmeans.cluster_centers_[i]
                             distances = np.linalg.norm(cluster_vectors - center_vector, axis=1)
                             selected_idx = cluster_idx[np.argmin(distances)]
                     else:
-                        # 默认使用中心选择
+                        # Default to center selection
                         cluster_vectors = X[cluster_idx].toarray()
                         center_vector = kmeans.cluster_centers_[i]
                         distances = np.linalg.norm(cluster_vectors - center_vector, axis=1)
@@ -863,8 +863,8 @@ class Memorizer:
                 kmeans_profile = [profile[i] for i in representative_indices]
                 
             except Exception as e:
-                print(f"[K-means Clustering] 聚类过程中出现错误: {e}")
-                # 如果聚类失败，使用原始corpus
+                print(f"[K-means Clustering] Error occurred during clustering: {e}")
+                # If clustering fails, use original corpus
                 kmeans_corpus = corpus
                 kmeans_profile = profile
         else:
@@ -884,7 +884,7 @@ class Memorizer:
             recency_corpus = []
             recency_profile = []
 
-        # 3. 合并 kmeans 和 recency 结果
+        # 3. Merge kmeans and recency results
         if self.use_kmeans or self.use_recency:
             merged_corpus = kmeans_corpus + [c for c in recency_corpus if c not in kmeans_corpus]
             merged_profile = kmeans_profile + [p for p in recency_profile if p not in kmeans_profile]
@@ -892,17 +892,17 @@ class Memorizer:
             merged_corpus = corpus
             merged_profile = profile
 
-        # 4. 使用 BGE 检索
+        # 4. Use BGE retrieval
         selected_profs, dense_scores = self.retriever.retrieve_topk_dense(
             merged_corpus, merged_profile, query, user, len(merged_corpus)
         )
         
-        # 5. 应用时间衰减权重
+        # 5. Apply time decay weights
         if self.time_decay_lambda > 0:
             time_weights = self._get_time_weight(selected_profs)
             dense_scores = np.array(dense_scores) * np.array(time_weights)
         
-        # 6. 重新排序并返回 topk
+        # 6. Re-sort and return topk
         sorted_idx = np.argsort(dense_scores)[::-1][:topk]
         selected_profs = [selected_profs[i] for i in sorted_idx]
         top_n_scores = [dense_scores[i] for i in sorted_idx]
