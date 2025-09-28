@@ -1,1 +1,1 @@
-# MemGraph
+# LLM Memory
